@@ -1,61 +1,60 @@
--- Project Slayers GUI Script (Delta Executor Compatible)
--- Features: Arrow BDA Kill Aura, Time Stop, Auto Boss Farm
+-- Project Slayers Auto Farm GUI Script (Delta Compatible)
+-- Created for private use, includes auto rejoin + persistence
+
+if getgenv().isRunning then return end
+getgenv().isRunning = true
+
+-- Settings (persistent)
+getgenv().ENABLE_KILL_AURA = getgenv().ENABLE_KILL_AURA or false
+getgenv().ENABLE_TIME_STOP = getgenv().ENABLE_TIME_STOP or false
+getgenv().AUTO_BOSS_FARM = getgenv().AUTO_BOSS_FARM or false
 
 -- Services
 local Players = game:GetService("Players")
-local UIS = game:GetService("UserInputService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RS = game:GetService("ReplicatedStorage")
+local TPService = game:GetService("TeleportService")
 local plr = Players.LocalPlayer
 local char = plr.Character or plr.CharacterAdded:Wait()
 local hrp = char:WaitForChild("HumanoidRootPart")
 
--- Toggles
-local ENABLE_KILL_AURA = false
-local ENABLE_TIME_STOP = false
-local AUTO_BOSS_FARM = false
+-- GUI
+local gui = Instance.new("ScreenGui", plr:WaitForChild("PlayerGui"))
+gui.Name = "SlayersUI"
+local frame = Instance.new("Frame", gui)
+frame.Position = UDim2.new(0, 20, 0, 100)
+frame.Size = UDim2.new(0, 200, 0, 170)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 
--- GUI Setup
-local ScreenGui = Instance.new("ScreenGui", plr:WaitForChild("PlayerGui"))
-ScreenGui.Name = "ProjectSlayersGUI"
-
-local Frame = Instance.new("Frame", ScreenGui)
-Frame.Position = UDim2.new(0, 20, 0, 100)
-Frame.Size = UDim2.new(0, 200, 0, 160)
-Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-Frame.BorderSizePixel = 0
-
-local function createButton(name, yPos, callback)
-    local button = Instance.new("TextButton", Frame)
-    button.Size = UDim2.new(0, 180, 0, 40)
-    button.Position = UDim2.new(0, 10, 0, yPos)
-    button.Text = name
-    button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    button.TextColor3 = Color3.new(1,1,1)
-    button.MouseButton1Click:Connect(callback)
+local function createBtn(name, posY, callback)
+    local btn = Instance.new("TextButton", frame)
+    btn.Size = UDim2.new(0, 180, 0, 35)
+    btn.Position = UDim2.new(0, 10, 0, posY)
+    btn.Text = name
+    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.MouseButton1Click:Connect(callback)
 end
 
--- Button Functions
-createButton("Toggle Kill Aura", 10, function()
-    ENABLE_KILL_AURA = not ENABLE_KILL_AURA
-    Frame:FindFirstChild("KillAuraStatus").Text = "Kill Aura: " .. tostring(ENABLE_KILL_AURA)
+-- Buttons
+createBtn("Toggle Kill Aura", 10, function()
+    getgenv().ENABLE_KILL_AURA = not getgenv().ENABLE_KILL_AURA
 end)
 
-createButton("Toggle Time Stop", 60, function()
-    ENABLE_TIME_STOP = not ENABLE_TIME_STOP
-    Frame:FindFirstChild("TimeStopStatus").Text = "Time Stop: " .. tostring(ENABLE_TIME_STOP)
+createBtn("Toggle Time Stop", 50, function()
+    getgenv().ENABLE_TIME_STOP = not getgenv().ENABLE_TIME_STOP
 end)
 
-createButton("Start Auto Boss Farm", 110, function()
-    if AUTO_BOSS_FARM then return end
-    AUTO_BOSS_FARM = true
-    spawn(function()
-        while AUTO_BOSS_FARM do
-            wait(math.random(2,4))
+createBtn("Auto Boss Farm", 90, function()
+    if getgenv().AUTO_BOSS_FARM then return end
+    getgenv().AUTO_BOSS_FARM = true
+    task.spawn(function()
+        while getgenv().AUTO_BOSS_FARM do
+            task.wait(2)
             for _, mob in pairs(workspace:GetDescendants()) do
                 if mob:IsA("Model") and mob:FindFirstChild("Humanoid") and mob:FindFirstChild("HumanoidRootPart") then
                     if mob.Name:lower():find("boss") and mob.Humanoid.Health > 0 then
                         hrp.CFrame = mob.HumanoidRootPart.CFrame * CFrame.new(0,0,-5)
-                        ReplicatedStorage.Remotes.Combat.Attack:FireServer("ArrowBarrage")
+                        RS.Remotes.Combat.Attack:FireServer("ArrowBarrage")
                     end
                 end
             end
@@ -63,31 +62,14 @@ createButton("Start Auto Boss Farm", 110, function()
     end)
 end)
 
--- Status Labels
-local killAuraStatus = Instance.new("TextLabel", Frame)
-killAuraStatus.Name = "KillAuraStatus"
-killAuraStatus.Position = UDim2.new(0, 10, 0, 150)
-killAuraStatus.Size = UDim2.new(0, 180, 0, 20)
-killAuraStatus.TextColor3 = Color3.new(1, 1, 1)
-killAuraStatus.BackgroundTransparency = 1
-killAuraStatus.Text = "Kill Aura: false"
-
-local timeStopStatus = Instance.new("TextLabel", Frame)
-timeStopStatus.Name = "TimeStopStatus"
-timeStopStatus.Position = UDim2.new(0, 10, 0, 170)
-timeStopStatus.Size = UDim2.new(0, 180, 0, 20)
-timeStopStatus.TextColor3 = Color3.new(1, 1, 1)
-timeStopStatus.BackgroundTransparency = 1
-timeStopStatus.Text = "Time Stop: false"
-
--- Core Loop
-spawn(function()
+-- Core loops
+task.spawn(function()
     while true do
-        wait(0.2)
+        task.wait(0.2)
 
-        if ENABLE_TIME_STOP then
+        if getgenv().ENABLE_TIME_STOP then
             for _, mob in pairs(workspace:GetDescendants()) do
-                if mob:IsA("Model") and mob:FindFirstChild("Humanoid") and mob:FindFirstChild("HumanoidRootPart") then
+                if mob:IsA("Model") and mob:FindFirstChild("HumanoidRootPart") then
                     pcall(function()
                         mob.HumanoidRootPart.Anchored = true
                     end)
@@ -95,18 +77,45 @@ spawn(function()
             end
         end
 
-        if ENABLE_KILL_AURA then
+        if getgenv().ENABLE_KILL_AURA then
             for _, mob in pairs(workspace:GetDescendants()) do
                 if mob:IsA("Model") and mob:FindFirstChild("Humanoid") and mob:FindFirstChild("HumanoidRootPart") then
                     if mob.Humanoid.Health > 0 and (mob.HumanoidRootPart.Position - hrp.Position).Magnitude < 30 then
-                        ReplicatedStorage.Remotes.Combat.Attack:FireServer("ArrowBarrage")
-                        wait(0.5)
-                        ReplicatedStorage.Remotes.Combat.Attack:FireServer("ArrowLadder")
-                        wait(0.5)
-                        ReplicatedStorage.Remotes.Combat.Attack:FireServer("ArrowRain")
+                        RS.Remotes.Combat.Attack:FireServer("ArrowBarrage")
+                        task.wait(0.5)
+                        RS.Remotes.Combat.Attack:FireServer("ArrowLadder")
+                        task.wait(0.5)
+                        RS.Remotes.Combat.Attack:FireServer("ArrowRain")
                     end
                 end
             end
         end
     end
+end)
+
+-- Auto Rejoin (Map & Level check)
+task.spawn(function()
+    local function getLevel()
+        local data = plr:FindFirstChild("Data") or plr:WaitForChild("Data")
+        return data:FindFirstChild("Level") and data.Level.Value or 1
+    end
+
+    local function getMapID()
+        local level = getLevel()
+        return level >= 50 and 2 or 1
+    end
+
+    local function rejoin()
+        local mapID = getMapID()
+        local privateCode = "h7xKkRpy"
+        local serverLink = "ProjectSlayersMap" .. mapID
+        TPService:TeleportToPrivateServer(serverLink, privateCode, {plr})
+    end
+
+    game:GetService("CoreGui"):WaitForChild("RobloxPromptGui"):WaitForChild("promptOverlay"):WaitForChild("ErrorPrompt").DescendantAdded:Connect(function(obj)
+        if obj:IsA("TextLabel") and obj.Text:lower():find("lost connection") then
+            task.wait(3)
+            rejoin()
+        end
+    end)
 end)
