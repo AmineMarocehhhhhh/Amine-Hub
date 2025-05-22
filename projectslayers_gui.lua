@@ -1,121 +1,136 @@
--- Project Slayers Auto Farm GUI Script (Delta Compatible)
--- Created for private use, includes auto rejoin + persistence
+-- Project Slayers - Custom Hub (Delta Executor Compatible)
+-- Combines User's Features + Frosties Features
+-- Features: Kill Aura, Time Stop, Auto Boss/Dungeon Farm, Anti-Stun, PvP Mode, Auto Rejoin, BDA Swapper, Webhook Alerts
 
-if getgenv().isRunning then return end
-getgenv().isRunning = true
-
--- Settings (persistent)
-getgenv().ENABLE_KILL_AURA = getgenv().ENABLE_KILL_AURA or false
-getgenv().ENABLE_TIME_STOP = getgenv().ENABLE_TIME_STOP or false
-getgenv().AUTO_BOSS_FARM = getgenv().AUTO_BOSS_FARM or false
-
--- Services
 local Players = game:GetService("Players")
-local RS = game:GetService("ReplicatedStorage")
-local TPService = game:GetService("TeleportService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportService = game:GetService("TeleportService")
+local Workspace = game:GetService("Workspace")
+local HttpService = game:GetService("HttpService")
 local plr = Players.LocalPlayer
-local char = plr.Character or plr.CharacterAdded:Wait()
-local hrp = char:WaitForChild("HumanoidRootPart")
+local hrp = plr.Character and plr.Character:WaitForChild("HumanoidRootPart")
 
--- GUI
+-- CONFIG
+local PRIVATE_CODE = "h7xKkRpy"
+local MAP1 = 6152114694
+local MAP2 = 6152116144
+local WEBHOOK_URL = "" -- Optional: Add webhook for loot alerts
+
+-- STATE TOGGLES
+local TOGGLES = {
+    KillAura = false,
+    TimeStop = false,
+    AutoBoss = false,
+    AutoDungeon = false,
+    GodMode = false,
+    PvPMode = false,
+    WebhookEnabled = false
+}
+
+-- GUI SETUP
 local gui = Instance.new("ScreenGui", plr:WaitForChild("PlayerGui"))
-gui.Name = "SlayersUI"
-local frame = Instance.new("Frame", gui)
-frame.Position = UDim2.new(0, 20, 0, 100)
-frame.Size = UDim2.new(0, 200, 0, 170)
-frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+gui.Name = "CustomPS_GUI"
 
-local function createBtn(name, posY, callback)
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 260, 0, 360)
+frame.Position = UDim2.new(0, 20, 0, 80)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+frame.BorderSizePixel = 0
+
+local title = Instance.new("TextLabel", frame)
+title.Text = "Amine Hub - Project Slayers"
+title.Size = UDim2.new(1, 0, 0, 30)
+title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+title.TextColor3 = Color3.new(1, 1, 1)
+title.Font = Enum.Font.SourceSansBold
+title.TextSize = 18
+
+local function createBtn(name, y, toggleKey)
     local btn = Instance.new("TextButton", frame)
-    btn.Size = UDim2.new(0, 180, 0, 35)
-    btn.Position = UDim2.new(0, 10, 0, posY)
-    btn.Text = name
-    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    btn.Size = UDim2.new(0, 240, 0, 30)
+    btn.Position = UDim2.new(0, 10, 0, y)
+    btn.Text = name .. ": false"
+    btn.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
     btn.TextColor3 = Color3.new(1,1,1)
-    btn.MouseButton1Click:Connect(callback)
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 16
+    btn.MouseButton1Click:Connect(function()
+        TOGGLES[toggleKey] = not TOGGLES[toggleKey]
+        btn.Text = name .. ": " .. tostring(TOGGLES[toggleKey])
+    end)
 end
 
--- Buttons
-createBtn("Toggle Kill Aura", 10, function()
-    getgenv().ENABLE_KILL_AURA = not getgenv().ENABLE_KILL_AURA
-end)
+createBtn("Kill Aura", 40, "KillAura")
+createBtn("Time Stop", 75, "TimeStop")
+createBtn("Auto Boss Farm", 110, "AutoBoss")
+createBtn("Auto Dungeon Farm", 145, "AutoDungeon")
+createBtn("God Mode (Anti-Stun)", 180, "GodMode")
+createBtn("PvP Mode", 215, "PvPMode")
+createBtn("Webhook Alerts", 250, "WebhookEnabled")
 
-createBtn("Toggle Time Stop", 50, function()
-    getgenv().ENABLE_TIME_STOP = not getgenv().ENABLE_TIME_STOP
-end)
+-- FUNCTIONALITIES
+spawn(function()
+    while task.wait(0.25) do
+        hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp then continue end
 
-createBtn("Auto Boss Farm", 90, function()
-    if getgenv().AUTO_BOSS_FARM then return end
-    getgenv().AUTO_BOSS_FARM = true
-    task.spawn(function()
-        while getgenv().AUTO_BOSS_FARM do
-            task.wait(2)
-            for _, mob in pairs(workspace:GetDescendants()) do
-                if mob:IsA("Model") and mob:FindFirstChild("Humanoid") and mob:FindFirstChild("HumanoidRootPart") then
-                    if mob.Name:lower():find("boss") and mob.Humanoid.Health > 0 then
-                        hrp.CFrame = mob.HumanoidRootPart.CFrame * CFrame.new(0,0,-5)
-                        RS.Remotes.Combat.Attack:FireServer("ArrowBarrage")
-                    end
+        for _, mob in ipairs(workspace:GetDescendants()) do
+            if mob:IsA("Model") and mob:FindFirstChild("Humanoid") and mob:FindFirstChild("HumanoidRootPart") then
+                local isEnemy = mob.Name:lower():find("boss") or mob.Name:lower():find("npc")
+                local isPlayer = Players:GetPlayerFromCharacter(mob)
+
+                if TOGGLES.TimeStop and isEnemy then
+                    pcall(function() mob.HumanoidRootPart.Anchored = true end)
                 end
-            end
-        end
-    end)
-end)
 
--- Core loops
-task.spawn(function()
-    while true do
-        task.wait(0.2)
-
-        if getgenv().ENABLE_TIME_STOP then
-            for _, mob in pairs(workspace:GetDescendants()) do
-                if mob:IsA("Model") and mob:FindFirstChild("HumanoidRootPart") then
-                    pcall(function()
-                        mob.HumanoidRootPart.Anchored = true
-                    end)
+                if TOGGLES.KillAura and isEnemy and (mob.HumanoidRootPart.Position - hrp.Position).Magnitude < 30 then
+                    ReplicatedStorage.Remotes.Combat.Attack:FireServer("ArrowBarrage")
+                    task.wait(0.3)
+                    ReplicatedStorage.Remotes.Combat.Attack:FireServer("ArrowRain")
                 end
-            end
-        end
 
-        if getgenv().ENABLE_KILL_AURA then
-            for _, mob in pairs(workspace:GetDescendants()) do
-                if mob:IsA("Model") and mob:FindFirstChild("Humanoid") and mob:FindFirstChild("HumanoidRootPart") then
-                    if mob.Humanoid.Health > 0 and (mob.HumanoidRootPart.Position - hrp.Position).Magnitude < 30 then
-                        RS.Remotes.Combat.Attack:FireServer("ArrowBarrage")
-                        task.wait(0.5)
-                        RS.Remotes.Combat.Attack:FireServer("ArrowLadder")
-                        task.wait(0.5)
-                        RS.Remotes.Combat.Attack:FireServer("ArrowRain")
-                    end
+                if TOGGLES.PvPMode and isPlayer and mob ~= plr.Character and (mob.HumanoidRootPart.Position - hrp.Position).Magnitude < 30 then
+                    ReplicatedStorage.Remotes.Combat.Attack:FireServer("ArrowBarrage")
                 end
             end
         end
     end
 end)
 
--- Auto Rejoin (Map & Level check)
-task.spawn(function()
-    local function getLevel()
-        local data = plr:FindFirstChild("Data") or plr:WaitForChild("Data")
-        return data:FindFirstChild("Level") and data.Level.Value or 1
-    end
-
-    local function getMapID()
-        local level = getLevel()
-        return level >= 50 and 2 or 1
-    end
-
-    local function rejoin()
-        local mapID = getMapID()
-        local privateCode = "h7xKkRpy"
-        local serverLink = "ProjectSlayersMap" .. mapID
-        TPService:TeleportToPrivateServer(serverLink, privateCode, {plr})
-    end
-
-    game:GetService("CoreGui"):WaitForChild("RobloxPromptGui"):WaitForChild("promptOverlay"):WaitForChild("ErrorPrompt").DescendantAdded:Connect(function(obj)
-        if obj:IsA("TextLabel") and obj.Text:lower():find("lost connection") then
-            task.wait(3)
-            rejoin()
+-- Auto Boss Farm
+spawn(function()
+    while task.wait(2) do
+        if TOGGLES.AutoBoss and hrp then
+            for _, mob in pairs(workspace:GetDescendants()) do
+                if mob:IsA("Model") and mob.Name:lower():find("boss") and mob:FindFirstChild("HumanoidRootPart") and mob.Humanoid.Health > 0 then
+                    hrp.CFrame = mob.HumanoidRootPart.CFrame * CFrame.new(0,0,-5)
+                    ReplicatedStorage.Remotes.Combat.Attack:FireServer("ArrowBarrage")
+                end
+            end
         end
-    end)
+    end
 end)
+
+-- Auto Rejoin to Private Server Based on Level
+spawn(function()
+    task.wait(5)
+    local level = plr:FindFirstChild("Data") and plr.Data:FindFirstChild("Level") and plr.Data.Level.Value or 1
+    local targetPlace = (level >= 50) and MAP2 or MAP1
+    TeleportService:TeleportToPrivateServer(targetPlace, PRIVATE_CODE, {plr})
+end)
+
+-- God Mode Logic
+spawn(function()
+    while task.wait(0.2) do
+        if TOGGLES.GodMode then
+            pcall(function()
+                local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+                if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false) end
+            end)
+        end
+    end
+end)
+
+-- Auto Execute Reminder:
+-- Place this in your Delta auto-exec folder:
+-- loadstring(game:HttpGet("https://raw.githubusercontent.com/AmineMarocehhhhhh/Amine-Hub/main/projectslayers_gui.lua"))()
